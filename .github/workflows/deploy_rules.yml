@@ -1,5 +1,23 @@
-index=main sourcetype=access_combined 
-| rename uri as request_uri 
-| where match(request_uri, "(?i)(union\s+select|group_by|order\s+by|insert\s+into|update\s+set|delete\s+from|drop\s+table|--|#|xp_cmdshell|select\s+.*\s+from)") 
-| stats count by _time, clientip, request_uri, useragent 
-| rename clientip as "Attacker_IP", request_uri as "Malicious_Query"
+name: Deploy Splunk Rules
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Push Rules to Splunk API
+        run: |
+          for file in rules/*.conf; do
+            echo "Deploying $file..."
+            curl -k -u admin:${{ secrets.SPLUNK_TOKEN }} \
+                 "${{ secrets.SPLUNK_HOST }}/services/saved/searches" \
+                 -d name="$(basename $file .conf)" \
+                 --data-urlencode search="$(cat $file)" \
+                 -d "is_visible=1" \
+                 -d "disabled=0"
+          done
