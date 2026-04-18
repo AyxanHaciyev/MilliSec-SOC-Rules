@@ -8,14 +8,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4  # Burada v4-ə keçdik (Warning həll olundu)
 
       - name: Push Rules to Splunk API
         run: |
           for file in rules/*.conf; do
             echo "Deploying $file..."
-            curl -k -u admin:${{ secrets.SPLUNK_TOKEN }} \
-                 "${{ secrets.SPLUNK_HOST }}/services/saved/searches" \
+            # Splunk Token üçün Bearer Header istifadə etməliyik
+            curl -k -X POST "${{ secrets.SPLUNK_HOST }}/services/saved/searches" \
+                 -H "Authorization: Bearer ${{ secrets.SPLUNK_TOKEN }}" \
                  -d name="$(basename $file .conf)" \
                  --data-urlencode search="$(cat $file)" \
                  -d "is_visible=1" \
