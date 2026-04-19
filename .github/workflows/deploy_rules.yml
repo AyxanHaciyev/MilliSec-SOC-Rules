@@ -16,10 +16,29 @@ jobs:
       - name: Deploy rules to Splunk
         run: |
           for file in rule/*.conf; do
-            echo "Deploying $file..."
+            # Faylın adını (qayda adını) götürürük
+            rule_name=$(basename "$file" .conf)
+            echo "Deploying rule: $rule_name"
 
-            curl -k -u admin:${{ secrets.SPLUNK_PASSWORD }} \
-              https://139.59.161.122:8089/servicesNS/admin/search/data/lookup-table-files \
-              -F "file=@$file"
+            # 1. Əvvəlcə yoxlayırıq: Bu qayda Splunk-da varmı? (HTTP statusu yoxlayırıq)
+            # DİQQƏT: Parolunu GitHub Secrets-ə SPLUNK_PASSWORD adı ilə qoymağın məsləhətdir!
+            HTTP_STATUS=$(curl -k -s -u admin:${{ secrets.SPLUNK_PASSWORD }} \
+              -o /dev/null -w "%{http_code}" \
+              "https://139.59.161.122:8089/servicesNS/admin/search/saved/searches/$rule_name")
 
+            if [ "$HTTP_STATUS" -eq 200 ]; then
+              echo "Qayda mövcuddur, yenilənir..."
+              curl -k -u admin:${{ secrets.SPLUNK_PASSWORD }} -X POST \
+                "https://139.59.161.122:8089/servicesNS/admin/search/saved/searches/$rule_name" \
+                --data-urlencode search="$(cat "$file")"
+            else
+              echo "Qayda yoxdur, yeni yaradılır..."
+              curl -k -u admin:${{ secrets.SPLUNK_PASSWORD }} -X POST \
+                "https://139.59.161.122:8089/servicesNS/admin/search/saved/searches" \
+                -d name="$rule_name" \
+                --data-urlencode search="$(cat "$file")" \
+                -d "is_visible=1" \
+                -d "disabled=0" \
+                -d "sharing=app"
+            fi
           done
