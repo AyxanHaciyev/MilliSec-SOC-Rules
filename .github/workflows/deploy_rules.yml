@@ -1,7 +1,23 @@
-- name: Push Rules to Splunk API
+name: Deploy Splunk Rules
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'rule/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Push Rules to Splunk API
         run: |
           for file in rule/*.conf; do
-            rule_name=$(basename $file .conf)
+            rule_name=$(basename "$file" .conf)
             echo "Deploying $rule_name..."
             
             # 1. Qaydanın Splunk-da olub-olmadığını yoxlayırıq
@@ -11,13 +27,13 @@
               echo "Qayda mövcuddur. Yenilənir (Update)..."
               curl -k -X POST "${{ secrets.SPLUNK_HOST }}/servicesNS/admin/search/saved/searches/$rule_name" \
                    -H "Authorization: Bearer ${{ secrets.SPLUNK_TOKEN }}" \
-                   --data-urlencode search="$(cat $file)"
+                   --data-urlencode search="$(cat "$file")"
             else
               echo "Qayda yoxdur. Sıfırdan yaradılır (Create)..."
               curl -k -X POST "${{ secrets.SPLUNK_HOST }}/servicesNS/admin/search/saved/searches" \
                    -H "Authorization: Bearer ${{ secrets.SPLUNK_TOKEN }}" \
                    -d name="$rule_name" \
-                   --data-urlencode search="$(cat $file)" \
+                   --data-urlencode search="$(cat "$file")" \
                    -d "is_visible=1" \
                    -d "disabled=0" \
                    -d "sharing=app"
