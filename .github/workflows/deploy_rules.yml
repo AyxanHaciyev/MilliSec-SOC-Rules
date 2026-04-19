@@ -2,8 +2,10 @@ name: Deploy Splunk Rules
 
 on:
   push:
+    branches:
+      - main
     paths:
-      - 'rule/*.conf'
+      - 'rule/**'
 
 jobs:
   deploy:
@@ -19,19 +21,30 @@ jobs:
             rule_name=$(basename "$file" .conf)
             echo "--- Deploying: $rule_name ---"
             
-            # Faylın içindəki axtarışı oxuyub dəyişənə mənimsədirik
-            SEARCH_QUERY=$(cat "$file")
-
-            # Splunk API-yə göndəririk (v-verbose rejimi ilə)
-            curl -k -v -u admin:"${{ secrets.SPLUNK_PASSWORD }}" \
-              "${{ secrets.SPLUNK_HOST }}/servicesNS/admin/search/saved/searches" \
-              -d name="$rule_name" \
-              --data-urlencode search="$SEARCH_QUERY" \
-              -d "is_visible=1" \
-              -d "disabled=0" \
-              -d "sharing=app" \
-              -o response.txt -w "HTTP_STATUS: %{http_code}\n"
+            # 1. Qaydanın Splunk-da olub-olmadığını yoxlayırıq (Bearer Token ilə)
+            # Biz bura --fail-with-body əlavə edirik ki, xəta olsa GitHub 'fail' versin.
             
-            # Cavabı ekrana çıxarırıq ki, xətanı görək
-            cat response.txt
+            HTTP_STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" \
+              "${{ secrets.SPLUNK_HOST }}/servicesNS/admin/search/saved/searches/$rule_name" \
+              -H "Authorization: Bearer ${{ secrets.SPLUNK_TOKEN }}")
+
+            if [ "$HTTP_STATUS" -eq 200 ]; then
+              echo "Qayda mövcuddur. Yenilənir (Update)..."
+              curl -k -X POST "${{ secrets.SPLUNK_HOST }}/servicesNS/admin/search/saved/searches/$rule_name" \
+                   -H "Authorization: Bearer ${{ secrets.SPLUNK_TOKEN }}" \
+                   --data-urlencode search="$(cat "$file")" \
+                   --fail-with-body
+            else
+              echo "Qayda yoxdur. Sıfırdan yaradılır (Create)..."
+              curl -k -X POST "${{ secrets.SPLUNK_HOST }}/servicesNS/admin/search/saved/searches" \
+                   -H "Authorization: Bearer ${{ secrets.SPLUNK_TOKEN }}" \
+                   -d name="$rule_name" \
+                   --data-urlencode search="$(cat "$file")" \
+                   -d "is_visible=1" \
+                   -d "disabled=0" \
+                   -d "sharing=app" \
+                   --fail-with-body
+            fi
+            
+            echo -e "\n--- Done with $rule_name ---\n"
           done
