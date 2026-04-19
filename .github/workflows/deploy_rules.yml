@@ -1,25 +1,37 @@
 name: Deploy Splunk Rules
+
 on:
   push:
     paths:
       - 'rule/*.conf'
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Push to Splunk
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Push Rules to Splunk API
         run: |
           for file in rule/*.conf; do
             rule_name=$(basename "$file" .conf)
-            echo "Deploying: $rule_name"
-            # Biz burada mütləq -k (insecure) və şifrəni secret-dən istifadə edirik
-            curl -k -s -u admin:"${{ secrets.SPLUNK_PASSWORD }}" \
+            echo "--- Deploying: $rule_name ---"
+            
+            # Faylın içindəki axtarışı oxuyub dəyişənə mənimsədirik
+            SEARCH_QUERY=$(cat "$file")
+
+            # Splunk API-yə göndəririk (v-verbose rejimi ilə)
+            curl -k -v -u admin:"${{ secrets.SPLUNK_PASSWORD }}" \
               "${{ secrets.SPLUNK_HOST }}/servicesNS/admin/search/saved/searches" \
               -d name="$rule_name" \
-              --data-urlencode search="$(cat "$file")" \
+              --data-urlencode search="$SEARCH_QUERY" \
               -d "is_visible=1" \
               -d "disabled=0" \
               -d "sharing=app" \
-              -o /dev/null -w "Status: %{http_code}\n"
+              -o response.txt -w "HTTP_STATUS: %{http_code}\n"
+            
+            # Cavabı ekrana çıxarırıq ki, xətanı görək
+            cat response.txt
           done
