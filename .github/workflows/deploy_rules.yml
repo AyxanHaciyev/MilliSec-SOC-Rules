@@ -1,44 +1,25 @@
 name: Deploy Splunk Rules
-
 on:
   push:
     paths:
       - 'rule/*.conf'
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Deploy rules to Splunk
+      - uses: actions/checkout@v4
+      - name: Push to Splunk
         run: |
           for file in rule/*.conf; do
-            # Faylın adını (qayda adını) götürürük
             rule_name=$(basename "$file" .conf)
-            echo "Deploying rule: $rule_name"
-
-            # 1. Əvvəlcə yoxlayırıq: Bu qayda Splunk-da varmı? (HTTP statusu yoxlayırıq)
-            # DİQQƏT: Parolunu GitHub Secrets-ə SPLUNK_PASSWORD adı ilə qoymağın məsləhətdir!
-            HTTP_STATUS=$(curl -k -s -u admin:${{ secrets.SPLUNK_PASSWORD }} \
-              -o /dev/null -w "%{http_code}" \
-              "https://139.59.161.122:8089/servicesNS/admin/search/saved/searches/$rule_name")
-
-            if [ "$HTTP_STATUS" -eq 200 ]; then
-              echo "Qayda mövcuddur, yenilənir..."
-              curl -k -u admin:${{ secrets.SPLUNK_PASSWORD }} -X POST \
-                "https://139.59.161.122:8089/servicesNS/admin/search/saved/searches/$rule_name" \
-                --data-urlencode search="$(cat "$file")"
-            else
-              echo "Qayda yoxdur, yeni yaradılır..."
-              curl -k -u admin:${{ secrets.SPLUNK_PASSWORD }} -X POST \
-                "https://139.59.161.122:8089/servicesNS/admin/search/saved/searches" \
-                -d name="$rule_name" \
-                --data-urlencode search="$(cat "$file")" \
-                -d "is_visible=1" \
-                -d "disabled=0" \
-                -d "sharing=app"
-            fi
+            echo "Deploying: $rule_name"
+            # Biz burada mütləq -k (insecure) və şifrəni secret-dən istifadə edirik
+            curl -k -s -u admin:"${{ secrets.SPLUNK_PASSWORD }}" \
+              "${{ secrets.SPLUNK_HOST }}/servicesNS/admin/search/saved/searches" \
+              -d name="$rule_name" \
+              --data-urlencode search="$(cat "$file")" \
+              -d "is_visible=1" \
+              -d "disabled=0" \
+              -d "sharing=app" \
+              -o /dev/null -w "Status: %{http_code}\n"
           done
