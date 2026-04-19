@@ -42,7 +42,7 @@ jobs:
                    --data-urlencode search="$(cat "$file")" \
                    -d "is_visible=1" \
                    -d "disabled=0" \
-                   -d "sharing=app" \
+                   -d "sharing=global" \
                    --fail-with-body
             fi
             
