@@ -1,27 +1,25 @@
 name: Deploy Splunk Rules
+
 on:
   push:
-    branches:
-      - main
     paths:
-      - 'rule/**'
+      - 'rule/*.conf'
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Repository
+      - name: Checkout repo
         uses: actions/checkout@v4
-      - name: Push Rules to Splunk API
+
+      - name: Deploy rules to Splunk
         run: |
           for file in rule/*.conf; do
-            rule_name=$(basename "$file" .conf)
-            echo "Deploying $rule_name..."
-            HTTP_STATUS=$(curl -k -s -o /dev/null -w "%{http_code}" "${{ secrets.SPLUNK_HOST }}/servicesNS/admin/search/saved/searches/$rule_name" -H "Authorization: Bearer ${{ secrets.SPLUNK_TOKEN }}")
-            if [ "$HTTP_STATUS" -eq 200 ] || [ "$HTTP_STATUS" -eq 201 ]; then
-              echo "Qayda mövcuddur. Yenilənir (Update)..."
-              curl -k -X POST "${{ secrets.SPLUNK_HOST }}/servicesNS/admin/search/saved/searches/$rule_name" -H "Authorization: Bearer ${{ secrets.SPLUNK_TOKEN }}" --data-urlencode search="$(cat "$file")"
-            else
-              echo "Qayda yoxdur. Sıfırdan yaradılır (Create)..."
-              curl -k -X POST "${{ secrets.SPLUNK_HOST }}/servicesNS/admin/search/saved/searches" -H "Authorization: Bearer ${{ secrets.SPLUNK_TOKEN }}" -d name="$rule_name" --data-urlencode search="$(cat "$file")" -d "is_visible=1" -d "disabled=0" -d "sharing=app"
-            fi
+            echo "Deploying $file..."
+
+            curl -k -u admin:${{ secrets.SPLUNK_PASSWORD }} \
+              https://139.59.161.122:8089/servicesNS/admin/search/data/lookup-table-files \
+              -F "file=@$file"
+
           done
