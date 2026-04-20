@@ -1,0 +1,7 @@
+index IN ("veb_server", "waf") 
+NOT clientip IN ("127.0.0.1", "10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12")
+(uri="*/admin*" OR uri="*/wp-admin*" OR uri="*/phpmyadmin*" OR uri="*/.env" OR uri="*/.git" OR uri="*id=*" OR uri="*user_id=*" OR uri="*doc_id=*")
+status=200
+| stats count values(uri) as accessed_uris dc(uri) as unique_uri_count by clientip, status
+| where unique_uri_count > 3 OR count > 15
+| sort - count
